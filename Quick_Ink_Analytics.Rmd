@@ -1,0 +1,263 @@
+---
+title: "Quick_Ink_Analytics"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+    theme: readable
+    social: ["twitter","facebook","menu"]
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+#importing required libraries
+library(flexdashboard)
+library(readr)
+library(knitr)
+library(DT)
+library(rpivotTable)
+library(ggplot2)
+library(plotly)
+library(dplyr)
+library(shiny)
+library(openintro)
+library(highcharter)
+library(dplyr)
+library(ggvis)
+library(countrycode)
+library(leaflet)
+library(gapminder)
+library(gganimate)
+library(gifski)
+```
+
+```{r}
+results <- read_csv("C:\\Users\\91993\\Documents\\Feasibility_Study\\Dashboard_Reporting\\Printers12_01_2021_16_47_31_144111.csv")
+
+results$price <- (as.character(results$price))
+
+new_r<- results[, c('name', 'brand', 'category','price')]
+
+new_r$Competitor_name <- "ink123"
+```
+
+```{r}
+mycolors <- c("blue","#FFC125","darkgreen","darkorange")
+```
+Ink123 Analysis
+================================================
+Row
+-------------------------------------------------------------
+### **Brands**
+```{r}
+#The valuebox indicates EDA or stats of the data
+valueBox(length(unique(results$brand)),
+         icon = 'fa-users',
+         color = "white")
+#Populating value into valuebox with icon and color
+```
+
+### **Printer Inkjet**
+```{r}
+valueBox(sum(results$category == "Printer_inkjet"),
+         icon = 'fas fa-futbol',
+         color = "lightblue")
+#Populating value into valuebox with icon and color
+```
+
+
+### **Total Categories**
+```{r}
+valueBox(length(results$category),
+         icon = 'fas fa-volleyball-ball',
+         color = "orange")
+#Populating value into valuebox with icon and color
+```
+
+### **Total Products**
+```{r}
+valueBox(length(unique(results$productCode)),
+         icon = 'fa-building',
+         color = "pink")
+#Populating value into valuebox with icon and color
+```
+
+### **Average price of product**
+```{r}
+gauge(round(mean(results$price),
+            digits = 2),
+            min = 0,
+            max = 4,
+            gaugeSectors(success = c(0,2),
+                         warning = c(2,3),
+                         danger = c(3,4),
+                         colors = c('green','yellow','red')))
+#Populating value into guage with icon and color
+```
+
+
+Row{.tabset .tabset-fade}
+---------------------------------------------
+### **Total Brand**
+```{r}
+p1 <- results %>%
+  group_by(brand) %>%
+  summarise(count = n()) %>%
+  plot_ly(x = ~brand,
+         y = ~count,
+         type = 'bar')%>%
+layout(yaxis = list(title='Count'))
+
+#bar graph to display most matches played by different countries.
+p1
+```
+
+### **Brand wise Product Category**
+```{r}
+p3 <- plot_ly(results,
+              x = ~brand,
+              y = ~category,
+              text = paste('Test'),
+              color = results$category,
+         type = 'bar') %>%
+  layout(xaxis = list(title="Tournament Analysis By Country"),
+         yaxis = list(title='Count'))
+
+#Bar graph giving detailed analysis of each team.
+
+p3
+```
+
+### **Total Brand**
+```{r}
+p2 <- results %>%
+  group_by(brand) %>%
+  summarise(count = n()) %>%
+  #filter(count>50) %>%
+  plot_ly(labels = ~brand,
+         values = ~count,
+         marker= list(colors=mycolors)) %>%
+  add_pie(hole = 0.2)%>%
+  layout(xaxis = list(zeroline = F,
+                      showline = F,
+                      showticklabels = F,
+                      showgrid = F),
+         yaxis = list(zeroline = F,
+                      showline = F,
+                      showticklabels = F,
+                      showgrid = F))
+
+#Pie chart to show most percentage of matches played by a team
+
+p2
+```
+
+Price Comparison
+================================================
+column {.sidebar}
+--------------------------------------------------------
+```{r}
+selectInput('FilterColumn', 'FilterColumn',choices =  names(new_r))
+textInput("FilterValue","FilterValue")
+```
+
+Column
+---------------------------------------------------------
+```{r}
+renderDataTable(
+  new_r %>% filter((!! rlang::sym(input$FilterColumn))==input$FilterValue))
+```
+
+Pivot Table
+===============================================================
+```{r}
+rpivotTable(results,
+          aggregatorName = "Count",
+          cols = "brand",
+          rows = "category",
+          rendererName = "Heatmap")
+#Pivot table to display valuable statistics customising options.
+```
+
+Analytics
+===============================================================
+```{r}
+ShinyAPP_For_Plots_model <- fluidPage(
+  
+  titlePanel("Price"),
+  
+  sidebarLayout(
+    
+    sidebarPanel(
+#giving options to user to choose the type of plot wants to view the data in
+      radioButtons("type", "Plot type:",
+                   c("Scatter" = "scat",
+                     "Boxplot" = "box",
+                     "Histogram"="hist")),
+      
+#Giving option to select input variables for the user.
+      selectInput('x', 'Select X Variable', names(results), names(results)[[4]]),
+      selectInput('y', 'Select Y Variable', names(results), names(results)[[5]]),
+    ),
+    
+    mainPanel(
+      
+      tabsetPanel(type = "tabs",
+                  tabPanel("Plot", plotOutput("plotxy")),
+                  tabPanel("Table", tableOutput("table"))
+      )
+      
+    )
+  )
+)
+server_Plots_model <- function(input, output) {
+  
+  output$plotxy <- renderPlot({
+    
+    if(input$type=="scat"){
+      model_lm <- lm(results[input$y][[1]]~results[input$x][[1]])
+      #creating linear model to fit the scatter plot
+      plot(results[input$x][[1]],results[input$y][[1]],
+           xlab = input$x, ylab=input$y,
+           main = paste("Scatterplot of", input$y, "vs", input$x))
+      abline(lm(results[input$y][[1]]~results[input$x][[1]]))
+      legend("topleft",title="Intercept & Slope",ncol = 2L,
+             legend = c("Intercept","Slope",round(model_lm$coefficient[1],2),round(model_lm$coefficient[2],2)))
+    } 
+    if(input$type=="box"){
+      boxplot(
+        as.formula(
+          paste(results[input$y]," ~ ",results[input$x])),
+        xlab = input$x, ylab=input$y,
+        main = paste("Boxplot of", input$y, "vs", input$x))
+    }
+    if(input$type=="hist"){
+      hist(results[input$x][[1]], 
+           xlab = input$x, 
+           main = paste("Histogram of", input$x))
+    }
+    print(p)
+  })
+  output$table <- renderTable({
+    model_lm <- lm(results[input$y][[1]]~results[input$x][[1]])
+    a=matrix(c(model_lm$coefficients), ncol = 2,nrow = 2)
+    colnames(a) <- c(model_lm$coefficients[1],model_lm$coefficients[2])
+  })
+}
+shinyApp(ShinyAPP_For_Plots_model, server_Plots_model)
+#To view barplot,scatterplot & histogram of 2 variables. The user can select the input variables.
+
+```
+
+
+Data Table
+===============================================================
+```{r}
+datatable(results,
+          caption = "Data",
+          rownames = T,
+          filter = "top",
+          options = list(pagelength=25)) 
+#To view the original data set, user can filter records as per their requirements.
+```
+
